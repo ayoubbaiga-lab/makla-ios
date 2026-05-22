@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0a0908" />
+  <title>Makla</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-title" content="Makla" />
+  <meta name="application-name" content="Makla" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    *::-webkit-scrollbar{display:none}
+    :root{
+      --bg:#0a0908; --bg2:#141210; --bg3:#1d1a17;
+      --ink:#f2ede5; --ink2:#a8a098; --ink3:#6e6862;
+      --terra:#C4704D; --terra-deep:#8a4a30; --terra-soft:#e8c5b3;
+      --line:rgba(242,237,229,.08); --line2:rgba(242,237,229,.14);
+    }
+    html,body{height:100%;background:var(--bg);overscroll-behavior:none}
+    body{
+      font-family:'Newsreader',Georgia,serif;color:var(--ink);
+      overflow:hidden;-webkit-font-smoothing:antialiased;-webkit-user-select:none;user-select:none;
+    }
+    input,textarea{-webkit-user-select:text;user-select:text;font-family:'Newsreader',serif}
+    .display{font-family:'Instrument Serif',Georgia,serif;font-weight:400;letter-spacing:-.02em}
+    .it{font-family:'Instrument Serif',Georgia,serif;font-style:italic;font-weight:400}
+    .mono{font-family:'Geist Mono',monospace}
+    button{cursor:pointer;font-family:inherit;color:inherit}
+    img{-webkit-user-drag:none}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes riseIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes slideInR{from{transform:translateX(100%)}to{transform:translateX(0)}}
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    @keyframes pulseRing{0%{transform:scale(.85);opacity:.6}100%{transform:scale(2.2);opacity:0}}
+    /* photo placeholder — terra texture */
+    .plate{position:relative;overflow:hidden;background:linear-gradient(135deg,#3a2418 0%,#1f140e 100%)}
+    .plate::before{content:"";position:absolute;inset:0;
+      background:radial-gradient(circle at 30% 30%,rgba(196,112,77,.4),transparent 60%),radial-gradient(circle at 70% 80%,rgba(196,112,77,.2),transparent 50%)}
+    .plate::after{content:"";position:absolute;inset:0;
+      background-image:repeating-linear-gradient(45deg,transparent 0,transparent 11px,rgba(0,0,0,.15) 11px,rgba(0,0,0,.15) 12px)}
+    .plate > span{position:absolute;bottom:8px;right:12px;z-index:3;
+      font-family:'Instrument Serif',serif;font-style:italic;font-size:12px;color:rgba(242,237,229,.9);letter-spacing:.04em;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+    .plate.loaded::before,.plate.loaded::after{display:none}
+    .tap{transition:opacity .15s}
+    .tap:active{opacity:.6}
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ════════ TOKENS ════════ */
+const C = {
+  bg:'#0a0908', bg2:'#141210', bg3:'#1d1a17',
+  ink:'#f2ede5', ink2:'#a8a098', ink3:'#6e6862',
+  terra:'#C4704D', terraDeep:'#8a4a30', terraSoft:'#e8c5b3',
+  line:'rgba(242,237,229,.08)', line2:'rgba(242,237,229,.14)',
+};
+const ROMAN = ['','I','II','III','IV','V','VI','VII','VIII','IX','X'];
+const roman = n => ROMAN[n] || n;
+
+/* ════════ DATA — contenu editorial (Mantes-la-Jolie) ════════ */
+const JOURS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const todayIdx = () => { const d=new Date().getDay(); return d===0?6:d-1; };
+
+const CUISINIEZ = [
+  { id:1, nom:'Fatima Berrada', initiales:'FB', cuisine:'Maghreb', atelier:'12 av. Foch', quartier:'Centre-Ville', plats:4, suivi:true,
+    portraitId:'1581579186913-45ac3e6efe93',
+    bio:"Cuisiniere depuis quinze ans. Je transmets les recettes de ma mere, nees a Fes." },
+  { id:2, nom:'Mariam Diop', initiales:'MD', cuisine:'Senegal', atelier:'4 rue Gambetta', quartier:'Gassicourt', plats:2, suivi:true,
+    portraitId:'1531123897727-8f129e1688ce',
+    bio:"De Dakar a Mantes. Le thieboudienne du dimanche, comme la-bas." },
+  { id:3, nom:'Lia Nguyen', initiales:'LN', cuisine:'Vietnam', atelier:'27 rue Nationale', quartier:'Les Martraits', plats:3, suivi:false,
+    portraitId:'1544005313-94ddf0286df2',
+    bio:"Le pho mijote douze heures. Patience et bouillon clair." },
+  { id:4, nom:'Rosa Ferrara', initiales:'RF', cuisine:'Italie', atelier:'8 place St-Maclou', quartier:'Centre-Ville', plats:3, suivi:false,
+    portraitId:'1487412720507-e7ab37603c6f',
+    bio:"Napolitaine. Les pates fraiches, roulees a la main chaque matin." },
+];
+// vraie photographie culinaire (Unsplash)
+const photo = (id,w=800,h=600) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&h=${h}&q=80`;
+
+// plats — chaque plat est un "numero"
+const PLATS = [
+  { id:101, num:'014', nom:'Couscous', motFin:'royal', auteurId:1, prix:14, prixEnfant:7, parts:2, partsRestantes:2, distance:'320 m',
+    imgId:'1585937421612-70a008356fbe',
+    desc:"Semoule fine, bouillon de sept legumes, agneau confit, merguez maison.",
+    allergenes:[{i:'i',t:'halal',ok:true},{i:'ii',t:'sans porc',ok:true},{i:'iii',t:'contient gluten',ok:false}],
+    creneau:'19h30 → 20h30', laUne:true },
+  { id:102, num:'015', nom:'Pastilla', motFin:'au poulet', auteurId:1, prix:13, prixEnfant:6.5, parts:2, partsRestantes:5, distance:'320 m',
+    imgId:'1509440159596-0249088772ff',
+    desc:"Feuille de brick croustillante, poulet, amandes, cannelle, sucre glace.",
+    allergenes:[{i:'i',t:'halal',ok:true},{i:'ii',t:'contient fruits a coque',ok:false}] },
+  { id:103, num:'008', nom:'Thieboudienne', motFin:'', auteurId:2, prix:12, prixEnfant:6, parts:2, partsRestantes:4, distance:'600 m',
+    imgId:'1604329760661-e71dc83f8f26',
+    desc:"Riz au poisson, legumes, sauce tomate, le plat national senegalais.",
+    allergenes:[{i:'i',t:'sans porc',ok:true},{i:'ii',t:'contient poisson',ok:false}] },
+  { id:104, num:'021', nom:'Pho', motFin:'bo', auteurId:3, prix:11, prixEnfant:5.5, parts:1, partsRestantes:6, distance:'950 m',
+    imgId:'1582878826629-29b7ad1cdc43',
+    desc:"Bouillon de boeuf mijote douze heures, vermicelles de riz, herbes fraiches.",
+    allergenes:[{i:'i',t:'sans gluten',ok:true},{i:'ii',t:'contient soja',ok:false}] },
+  { id:105, num:'009', nom:'Lasagnes', motFin:'alla nonna', auteurId:4, prix:12, prixEnfant:6, parts:2, partsRestantes:3, distance:'410 m',
+    imgId:'1574894709920-11b28e7367e3',
+    desc:"Pates fraiches, ragu de boeuf et porc, bechamel, parmesan affine.",
+    allergenes:[{i:'i',t:'contient gluten',ok:false},{i:'ii',t:'contient lait',ok:false}] },
+];
+const platsById = id => PLATS.find(p=>p.id===id);
+const cuiById = id => CUISINIEZ.find(c=>c.id===id);
+const laUne = () => PLATS.find(p=>p.laUne);
+const autresDuJour = () => PLATS.filter(p=>!p.laUne).slice(0,3);
+
+// menu de la semaine (5 jours)
+const SEMAINE = [
+  { jour:'Lun 04.V', platId:103 },
+  { jour:'Mar 05.V', platId:104 },
+  { jour:'Mer 06.V', platId:105 },
+  { jour:'Jeu 07.V', platId:101 },
+  { jour:'Ven 08.V', platId:102 },
+];
+
+/* ════════ PRIMITIVES ════════ */
+// Photo de plat — vraie image + overlay editorial (gradient + caption italique)
+const Plate = ({h='100%', label='plat', imgId, w=800, ht=600}) => (
+  <div className="plate" style={{width:'100%',height:h}}>
+    {imgId && <img src={photo(imgId,w,ht)} alt={label} style={{width:'100%',height:'100%',objectFit:'cover',display:'block',position:'relative',zIndex:1}}
+      onLoad={e=>{e.target.parentElement.classList.add('loaded');}}
+      onError={e=>{e.target.style.display='none';}} />}
+    {imgId && <div style={{position:'absolute',inset:0,zIndex:2,background:'linear-gradient(180deg,rgba(10,9,8,.1) 0%,transparent 35%,rgba(10,9,8,.55) 100%)'}}/>}
+    {label && <span style={{zIndex:3}}>— {label} —</span>}
+  </div>
+);
+// Portrait cuisiniez — vraie photo ronde
+const Avatar = ({size=36, portraitId}) => (
+  <div className="plate" style={{width:size,height:size,borderRadius:'50%',flexShrink:0}}>
+    {portraitId && <img src={photo(portraitId,200,200)} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%',position:'relative',zIndex:1}} onError={e=>{e.target.style.display='none';}} />}
+  </div>
+);
+const Label = ({children, color=C.terra, mb=8, style}) => (
+  <div className="it" style={{fontSize:12,color,letterSpacing:'.04em',marginBottom:mb,...style}}>{children}</div>
+);
+// Espace pour la vraie barre de statut du telephone (encoche/dynamic island).
+// PAS de fausse heure ni "5G" — l'app respecte la barre native de l'iPhone.
+const StatusBar = () => (
+  <div style={{height:'max(env(safe-area-inset-top),12px)',flexShrink:0}} />
+);
+// CTA primaire rectangulaire
+const Cta = ({onClick, children, note}) => (
+  <div>
+    <button onClick={onClick} className="tap" style={{width:'100%',height:52,background:C.terra,color:'#fff',border:'none',
+      fontFamily:"'Instrument Serif',serif",fontSize:18,letterSpacing:'.01em'}}>{children}</button>
+    {note && <div className="it" style={{fontSize:11,color:C.ink2,marginTop:8,textAlign:'center',lineHeight:1.4,padding:'0 8px'}}>{note}</div>}
+  </div>
+);
+const CashNote = () => (
+  <div className="it" style={{fontSize:11,color:C.ink2,textAlign:'center',lineHeight:1.4}}>
+    Paiement a la collecte · especes uniquement, en ligne <span style={{color:C.terra}}>prochainement</span>.
+  </div>
+);
+
+/* ════════ SPLASH ════════ */
+const Splash = ({onDone}) => {
+  useEffect(()=>{ const t=setTimeout(onDone,2600); return ()=>clearTimeout(t); },[]);
+  return (
+    <div onClick={onDone} className="tap" style={{position:'absolute',inset:0,background:C.bg,display:'flex',flexDirection:'column',justifyContent:'center',padding:'0 32px',animation:'fadeIn .8s',cursor:'pointer'}}>
+      <div className="mono" style={{fontSize:11,letterSpacing:'.3em',color:C.terra,marginBottom:28}}>— MAKLA —</div>
+      <div className="display" style={{fontSize:62,lineHeight:.98,letterSpacing:'-.03em'}}>
+        Cuisine<br/><span className="it" style={{color:C.terra}}>par le voisinage.</span><br/>
+        Servi<br/><span className="it" style={{color:C.terra}}>a votre table.</span>
+      </div>
+      <div className="it" style={{fontSize:15,color:C.ink2,marginTop:28}}>Mantes-la-Jolie · les cuisiniez du quartier</div>
+      <div className="it" style={{fontSize:13,color:C.ink3,marginTop:40}}>toucher pour entrer →</div>
+    </div>
+  );
+};
+
+/* ════════ HOME — double format ════════ */
+const Home = ({onPlat, vue, setVue}) => {
+  const une = laUne();
+  const auteurUne = cuiById(une.auteurId);
+  return (
+    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column'}}>
+      <StatusBar/>
+      <div style={{flex:1,overflowY:'auto',paddingBottom:90}}>
+        {/* entete numero */}
+        <div style={{padding:'14px 22px 12px',borderBottom:`1px solid ${C.line}`,display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+          <span className="it" style={{fontSize:14,color:C.ink3}}>VEN. 24.IV — N° 0142</span>
+          <span className="it" style={{fontSize:13,color:C.terra}}>Mantes</span>
+        </div>
+
+        {/* switch editorial */}
+        <div style={{display:'flex',borderBottom:`1px solid ${C.line}`,position:'relative'}}>
+          {[['soir','Ce','soir'],['semaine','Cette','semaine']].map(([k,a,b])=>(
+            <div key={k} className="tap" onClick={()=>setVue(k)} style={{flex:1,padding:'18px 0 16px',textAlign:'center',position:'relative',color:vue===k?C.ink:C.ink3}}>
+              <span className="display" style={{fontSize:24,letterSpacing:'-.02em'}}>{a} <span className="it" style={{color:vue===k?C.terra:'inherit'}}>{b}</span></span>
+              {vue===k && <div style={{position:'absolute',left:'22%',right:'22%',bottom:-1,height:2,background:C.terra}}/>}
+            </div>
+          ))}
+        </div>
+
+        {/* bandeau lancement */}
+        <div style={{margin:'18px 22px 0',padding:'14px 18px',border:`1px solid rgba(196,112,77,.3)`,background:'rgba(196,112,77,.06)'}}>
+          <Label mb={5} style={{fontSize:11}}>— LANCEMENT —</Label>
+          <div className="display" style={{fontSize:18,lineHeight:1.3}}>
+            <span className="it" style={{color:C.terra}}>3 mois gratuits</span> · paiement en especes a la collecte.
+          </div>
+          <div className="it" style={{fontSize:12,color:C.ink2,marginTop:5}}>Pas de frais, pas d'engagement. Le paiement en ligne arrive prochainement.</div>
+        </div>
+
+        {vue==='soir' ? (
+          <div style={{animation:'fadeIn .35s'}}>
+            {/* La Une */}
+            <div className="tap" onClick={()=>onPlat(une.id)} style={{padding:'22px 22px 0'}}>
+              <Label>— LA UNE —</Label>
+              <div className="display" style={{fontSize:32,lineHeight:1,letterSpacing:'-.025em'}}>
+                {une.nom}<br/><span className="it" style={{color:C.terra}}>de {auteurUne.nom.split(' ')[0]}.</span>
+              </div>
+              <div className="it" style={{fontSize:13,color:C.ink2,marginTop:6}}>a retirer ce soir, {une.creneau}</div>
+            </div>
+            <div className="tap" onClick={()=>onPlat(une.id)} style={{padding:'12px 22px 0'}}>
+              <Plate h="200px" imgId={une.imgId} label={`${une.nom.toLowerCase()} ${une.motFin}`} w={900} ht={500} />
+            </div>
+            <div style={{padding:'12px 22px',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+              <span className="it" style={{fontSize:13,color:C.ink2}}>{une.prix} € · {une.parts} parts · {une.distance}</span>
+              <span className="it tap" onClick={()=>onPlat(une.id)} style={{fontSize:14,color:C.terra}}>lire →</span>
+            </div>
+
+            {/* table d'hote */}
+            <div style={{margin:'4px 22px 0',padding:14,border:`1px solid rgba(196,112,77,.3)`,background:'rgba(196,112,77,.05)'}}>
+              <Label mb={4} style={{fontSize:12}}>— TABLE D'HOTE —</Label>
+              <div className="it" style={{fontSize:14,color:C.ink,lineHeight:1.4}}>
+                4 voisins ont commande chez {auteurUne.nom.split(' ')[0]}.<br/>
+                <span style={{color:C.terra}}>Rejoindre — 12 € au lieu de {une.prix}.</span>
+              </div>
+            </div>
+
+            {/* le menu du jour */}
+            <div style={{padding:'24px 22px 0'}}><Label>— LE MENU DU JOUR —</Label></div>
+            {autresDuJour().map(p=>{
+              const a = cuiById(p.auteurId);
+              return (
+                <div key={p.id} className="tap" onClick={()=>onPlat(p.id)} style={{display:'flex',gap:14,padding:'12px 22px',borderTop:`1px solid ${C.line}`,alignItems:'center'}}>
+                  <div style={{width:64,height:64,flexShrink:0}}><Plate h="64px" imgId={p.imgId} label="" w={200} ht={200} /></div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="display" style={{fontSize:19,lineHeight:1.1}}>{p.nom} <span className="it" style={{color:C.terra}}>{p.motFin}</span></div>
+                    <div className="it" style={{fontSize:12,color:C.ink2,marginTop:3}}>par {a.nom} · {p.distance}</div>
+                  </div>
+                  <div className="it" style={{fontSize:15,color:C.ink,flexShrink:0}}>{p.prix} €</div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{animation:'fadeIn .35s',padding:'22px 22px 0'}}>
+            <Label>— CETTE SEMAINE —</Label>
+            <div className="it" style={{fontSize:14,color:C.ink2,marginBottom:14,lineHeight:1.5}}>Le menu des cinq prochains jours. Reservez a l'avance, retirez le soir venu.</div>
+            {SEMAINE.map((s,i)=>{
+              const p = platsById(s.platId); const a = cuiById(p.auteurId);
+              return (
+                <div key={i} className="tap" onClick={()=>onPlat(p.id)} style={{display:'flex',gap:14,padding:'14px 0',borderTop:`1px solid ${C.line}`,alignItems:'baseline'}}>
+                  <span className="it" style={{fontSize:13,color:C.ink3,width:62,flexShrink:0}}>{s.jour}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="display" style={{fontSize:18,lineHeight:1.1}}>{p.nom} <span className="it" style={{color:C.terra}}>{p.motFin}</span></div>
+                    <div className="it" style={{fontSize:12,color:C.ink2,marginTop:2}}>par {a.nom}</div>
+                  </div>
+                  <span className="it" style={{fontSize:14,color:C.ink,flexShrink:0}}>{p.prix} €</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ════════ DETAIL PLAT ════════ */
+const Detail = ({platId, onBack, onReserve, suivis, toggleSuivi}) => {
+  const p = platsById(platId);
+  const a = cuiById(p.auteurId);
+  const [enfant,setEnfant] = useState(false);
+  const suivi = suivis.includes(a.id);
+  const prix = enfant ? p.prixEnfant : p.prix;
+  const apres19h = true; // demo: on affiche les restants
+  return (
+    <div style={{position:'absolute',inset:0,background:C.bg,display:'flex',flexDirection:'column',animation:'slideInR .35s cubic-bezier(.16,1,.3,1)'}}>
+      <StatusBar/>
+      {/* Boutons FIXES — toujours visibles, ne scrollent jamais */}
+      <button onClick={onBack} className="tap" style={{position:'absolute',top:'max(env(safe-area-inset-top),14px)',left:14,zIndex:50,width:44,height:44,background:'rgba(10,9,8,.7)',backdropFilter:'blur(8px)',border:`1px solid ${C.line2}`,color:C.ink,fontFamily:"'Instrument Serif',serif",fontSize:22}}>‹</button>
+      <button onClick={()=>toggleSuivi(a.id)} className="tap it" style={{position:'absolute',top:'max(env(safe-area-inset-top),16px)',right:14,zIndex:50,padding:'9px 14px',background:'rgba(10,9,8,.7)',backdropFilter:'blur(8px)',border:`1px solid ${suivi?C.terra:C.line2}`,color:suivi?C.terra:C.ink,fontSize:13}}>
+        {suivi?'suivi ✓':'suivre '+a.nom.split(' ')[0]}
+      </button>
+      <div style={{flex:1,overflowY:'auto',paddingBottom:120}}>
+        <div style={{position:'relative'}}>
+          <Plate h="260px" imgId={p.imgId} label={`${p.nom.toLowerCase()} ${p.motFin}`} w={900} ht={600} />
+        </div>
+
+        <div style={{padding:'18px 22px 0'}}>
+          <Label>— PAR {a.nom.toUpperCase()} — N° {p.num}</Label>
+          <div className="display" style={{fontSize:32,lineHeight:1,letterSpacing:'-.025em',marginTop:6}}>
+            {p.nom} <span className="it" style={{color:C.terra}}>{p.motFin||'.'}</span>
+          </div>
+          <div className="it" style={{fontSize:14,color:C.ink2,marginTop:8,lineHeight:1.45}}>{p.desc}</div>
+
+          {/* allergenes typo */}
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:14}}>
+            {p.allergenes.map((al,i)=>(
+              <span key={i} className="it" style={{fontSize:11,color:C.ink2,padding:'3px 10px',border:`1px solid ${C.line}`}}>
+                <span style={{color:al.ok?C.terra:C.ink3}}>{al.i}</span> {al.t}
+              </span>
+            ))}
+          </div>
+
+          {/* portion enfant */}
+          <div onClick={()=>setEnfant(v=>!v)} className="tap" style={{margin:'18px 0 0',padding:14,border:`1px solid ${C.line}`,display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
+            <div style={{flex:1}}>
+              <div className="display" style={{fontSize:17,lineHeight:1.2}}>Portion <span className="it" style={{color:C.terraSoft}}>enfant</span></div>
+              <div className="it" style={{fontSize:12,color:C.ink2,marginTop:4}}>moitie du plat · {p.prixEnfant} €</div>
+            </div>
+            <div style={{width:42,height:24,background:enfant?C.terra:C.bg3,borderRadius:14,position:'relative',transition:'background .2s',flexShrink:0,border:`1px solid ${C.line2}`}}>
+              <div style={{position:'absolute',top:2,left:enfant?20:2,width:18,height:18,background:'#fff',borderRadius:'50%',transition:'left .2s'}}/>
+            </div>
+          </div>
+
+          {/* dernieres parts */}
+          {apres19h && p.partsRestantes < 6 && (
+            <div style={{margin:'14px 0 0',padding:'12px 14px',border:`1px solid rgba(196,112,77,.4)`,background:'rgba(196,112,77,.06)'}}>
+              <Label mb={2} style={{fontSize:12}}>— DERNIERES PARTS —</Label>
+              <div className="it" style={{fontSize:14,color:C.ink}}><b style={{fontStyle:'normal'}}>{p.partsRestantes} restantes</b> a retirer avant 21h.</div>
+            </div>
+          )}
+
+          {/* l'auteur */}
+          <div style={{margin:'20px 0 0',paddingTop:18,borderTop:`1px solid ${C.line}`,display:'flex',gap:12,alignItems:'flex-start'}}>
+            <Avatar size={44} portraitId={a.portraitId}/>
+            <div style={{flex:1}}>
+              <div className="display" style={{fontSize:17}}>{a.nom}</div>
+              <div className="it" style={{fontSize:12,color:C.ink2,marginTop:3,lineHeight:1.5}}>{a.bio}</div>
+              <div className="it" style={{fontSize:12,color:C.ink3,marginTop:6}}>Atelier · {a.atelier}, {a.quartier}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA bas */}
+      <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'12px 22px max(env(safe-area-inset-bottom),14px)',background:C.bg,borderTop:`1px solid ${C.line}`}}>
+        <Cta onClick={()=>onReserve(p.id, enfant)} note={<>Paiement a la collecte · especes uniquement, en ligne <span style={{color:C.terra}}>prochainement</span>.</>}>
+          Reserver · <span className="it">{prix} €</span>
+        </Cta>
+      </div>
+    </div>
+  );
+};
+
+/* ════════ PANIER ════════ */
+const Panier = ({panier, setPanier, onConfirm, onExplore}) => {
+  const sousTotal = panier.reduce((s,it)=>s + (it.enfant?it.prixEnfant:it.prix)*it.qte, 0);
+  if(!panier.length) return (
+    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column'}}>
+      <StatusBar/>
+      <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'0 40px',textAlign:'center'}}>
+        <Label>— LE PANIER —</Label>
+        <div className="display" style={{fontSize:34,lineHeight:1,letterSpacing:'-.02em',marginBottom:14}}>Rien de <span className="it" style={{color:C.terra}}>reserve.</span></div>
+        <div className="it" style={{fontSize:14,color:C.ink2,marginBottom:32,lineHeight:1.5}}>Le numero du jour vous attend. Choisissez un plat chez un cuisiniez du quartier.</div>
+        <div style={{width:'100%',maxWidth:300}}><Cta onClick={onExplore}>Lire le numero du jour</Cta></div>
+      </div>
+    </div>
+  );
+  return (
+    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column'}}>
+      <StatusBar/>
+      <div style={{flex:1,overflowY:'auto',paddingBottom:200}}>
+        <div style={{padding:'14px 22px 18px'}}>
+          <Label>— VOTRE NOTE —</Label>
+          <div className="display" style={{fontSize:32,letterSpacing:'-.02em'}}>Le panier.</div>
+        </div>
+        {panier.map((it,i)=>{
+          const a = cuiById(it.auteurId);
+          return (
+            <div key={i} style={{display:'flex',gap:14,padding:'14px 22px',borderTop:`1px solid ${C.line}`,alignItems:'flex-start'}}>
+              <div style={{width:60,height:60,flexShrink:0}}><Plate h="60px" imgId={it.imgId} label="" w={200} ht={200} /></div>
+              <div style={{flex:1,minWidth:0}}>
+                <div className="display" style={{fontSize:18,lineHeight:1.1}}>{it.nom} <span className="it" style={{color:C.terra}}>{it.motFin}</span></div>
+                <div className="it" style={{fontSize:12,color:C.ink2,marginTop:2}}>par {a.nom}{it.enfant?' · portion enfant':''}</div>
+                <div className="it tap" onClick={()=>setPanier(p=>p.filter((_,j)=>j!==i))} style={{fontSize:12,color:C.ink3,marginTop:6}}>retirer</div>
+              </div>
+              <div className="it" style={{fontSize:16,flexShrink:0}}>{((it.enfant?it.prixEnfant:it.prix)*it.qte).toFixed(2)} €</div>
+            </div>
+          );
+        })}
+        {/* plat suspendu */}
+        <div style={{margin:'18px 22px 0',padding:14,border:`1px solid ${C.line2}`}}>
+          <div className="display" style={{fontSize:16}}>Ajouter un plat <span className="it" style={{color:C.terra}}>suspendu</span></div>
+          <div className="it" style={{fontSize:12,color:C.ink2,marginTop:4,lineHeight:1.4}}>— offert a un voisin via les associations locales (Restos du Coeur, CCAS Mantes).</div>
+        </div>
+      </div>
+
+      {/* recap + CTA */}
+      <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'18px 22px max(env(safe-area-inset-bottom),16px)',background:C.bg,borderTop:`1px solid ${C.line}`}}>
+        <div style={{display:'flex',justifyContent:'space-between',padding:'4px 0'}}>
+          <span className="it" style={{fontSize:14,color:C.ink2}}>Sous-total plats</span>
+          <span className="it" style={{fontSize:14}}>{sousTotal.toFixed(2)} €</span>
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',padding:'4px 0'}}>
+          <span className="it" style={{fontSize:14,color:C.ink2}}>Frais de service</span>
+          <span className="it" style={{fontSize:14,color:C.terra}}>offert</span>
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0 14px',marginTop:4,borderTop:`1px solid ${C.line}`}}>
+          <span className="display" style={{fontSize:17}}>A regler en especes</span>
+          <span className="display" style={{fontSize:18}}>{sousTotal.toFixed(2)} €</span>
+        </div>
+        <Cta onClick={onConfirm} note="Especes uniquement a la collecte · paiement en ligne prochainement.">Confirmer la note</Cta>
+      </div>
+    </div>
+  );
+};
+
+/* ════════ CONFIRMATION + carte quartier ════════ */
+const Confirmation = ({order, onDone}) => {
+  const a = cuiById(order.auteurId);
+  return (
+    <div style={{position:'absolute',inset:0,background:C.bg,display:'flex',flexDirection:'column',animation:'slideUp .4s cubic-bezier(.16,1,.3,1)'}}>
+      <StatusBar/>
+      <div style={{flex:1,overflowY:'auto',paddingBottom:100}}>
+        <div style={{padding:'24px 22px 16px',borderBottom:`1px solid ${C.line}`}}>
+          <Label>— COMMANDE N° {order.num} —</Label>
+          <div className="display" style={{fontSize:30,lineHeight:1,letterSpacing:'-.025em',marginTop:6}}>C'est <span className="it" style={{color:C.terra}}>note.</span></div>
+          <div className="it" style={{fontSize:13,color:C.ink2,marginTop:8,lineHeight:1.5}}>a retirer chez {a.nom.split(' ')[0]} · {order.creneau} · {a.atelier}</div>
+        </div>
+
+        {/* carte quartier SVG */}
+        <div style={{position:'relative',height:280,background:'#0e0c0a',overflow:'hidden'}}>
+          <svg viewBox="0 0 320 280" style={{position:'absolute',inset:0,width:'100%',height:'100%'}}>
+            <g stroke="rgba(242,237,229,.06)" strokeWidth="1" fill="none">
+              <path d="M0 70 L320 70"/><path d="M0 140 L320 140"/><path d="M0 210 L320 210"/>
+              <path d="M80 0 L80 280"/><path d="M180 0 L180 280"/><path d="M260 0 L260 280"/>
+            </g>
+            <path d="M0 240 Q80 220 160 235 T320 230" stroke="rgba(196,112,77,.15)" strokeWidth="6" fill="none"/>
+            <circle cx="180" cy="140" r="14" fill="#C4704D"/>
+            <circle cx="180" cy="140" r="22" fill="none" stroke="#C4704D" strokeWidth="1" opacity=".4"/>
+            <text x="180" y="176" fontFamily="Instrument Serif" fontStyle="italic" fontSize="13" fill="#f2ede5" textAnchor="middle">vous, ici</text>
+            <circle cx="80" cy="90" r="6" fill="none" stroke="#C4704D" strokeWidth="1.5"/>
+            <text x="80" y="76" fontFamily="Instrument Serif" fontStyle="italic" fontSize="11" fill="#a8a098" textAnchor="middle">Mariam</text>
+            <circle cx="260" cy="200" r="6" fill="none" stroke="#C4704D" strokeWidth="1.5"/>
+            <text x="260" y="186" fontFamily="Instrument Serif" fontStyle="italic" fontSize="11" fill="#a8a098" textAnchor="middle">Lia</text>
+            <circle cx="105" cy="200" r="4" fill="rgba(196,112,77,.5)"/>
+            <circle cx="220" cy="80" r="4" fill="rgba(196,112,77,.5)"/>
+            <circle cx="55" cy="170" r="4" fill="rgba(196,112,77,.5)"/>
+          </svg>
+          <div style={{position:'absolute',top:14,left:14}}><Label mb={0} style={{fontSize:11}}>— LE QUARTIER, CE SOIR —</Label></div>
+        </div>
+
+        <div style={{padding:'18px 22px'}}>
+          <div className="display" style={{fontSize:22,lineHeight:1.05}}><span className="it" style={{color:C.terra}}>14 voisins</span> commandent ce soir a Mantes.</div>
+          <div className="it" style={{fontSize:13,color:C.ink2,marginTop:6,lineHeight:1.5}}>3 ateliers ouverts. 11 plats restants. Vous serez prevenu quand le votre sort du four.</div>
+        </div>
+      </div>
+      <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'12px 22px max(env(safe-area-inset-bottom),14px)',background:C.bg,borderTop:`1px solid ${C.line}`}}>
+        <Cta onClick={onDone}>Revenir au numero</Cta>
+      </div>
+    </div>
+  );
+};
+
+/* ════════ CUISINIEZ (liste) ════════ */
+const CuisiniezList = ({onPlat, suivis, toggleSuivi}) => (
+  <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column'}}>
+    <StatusBar/>
+    <div style={{flex:1,overflowY:'auto',paddingBottom:90}}>
+      <div style={{padding:'14px 22px 18px',borderBottom:`1px solid ${C.line}`}}>
+        <Label>— LES AUTEURS —</Label>
+        <div className="display" style={{fontSize:32,letterSpacing:'-.02em'}}>Les cuisiniez.</div>
+        <div className="it" style={{fontSize:13,color:C.ink2,marginTop:6,lineHeight:1.5}}>Quatre ateliers ouverts a Mantes-la-Jolie. Chacun son numero, sa cuisine, son histoire.</div>
+      </div>
+      {CUISINIEZ.map(c=>{
+        const plat = PLATS.find(p=>p.auteurId===c.id);
+        const suivi = suivis.includes(c.id);
+        return (
+          <div key={c.id} style={{padding:'18px 22px',borderBottom:`1px solid ${C.line}`}}>
+            <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
+              <Avatar size={52} portraitId={c.portraitId}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:8}}>
+                  <div className="display" style={{fontSize:20}}>{c.nom}</div>
+                  <span onClick={()=>toggleSuivi(c.id)} className="it tap" style={{fontSize:12,color:suivi?C.terra:C.ink3,flexShrink:0}}>{suivi?'suivi ✓':'suivre'}</span>
+                </div>
+                <div className="it" style={{fontSize:12,color:C.terra,marginTop:2}}>{c.cuisine} · {c.quartier}</div>
+                <div className="it" style={{fontSize:13,color:C.ink2,marginTop:6,lineHeight:1.5}}>{c.bio}</div>
+              </div>
+            </div>
+            {plat && (
+              <div className="tap" onClick={()=>onPlat(plat.id)} style={{display:'flex',gap:12,marginTop:14,paddingTop:14,borderTop:`1px solid ${C.line}`,alignItems:'center'}}>
+                <div style={{width:48,height:48,flexShrink:0}}><Plate h="48px" imgId={plat.imgId} label="" w={150} ht={150} /></div>
+                <div style={{flex:1}}>
+                  <div className="display" style={{fontSize:16}}>{plat.nom} <span className="it" style={{color:C.terra}}>{plat.motFin}</span></div>
+                  <div className="it" style={{fontSize:12,color:C.ink2}}>au menu ce soir · {plat.prix} €</div>
+                </div>
+                <span className="it" style={{fontSize:13,color:C.terra}}>lire →</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
+/* ════════ COMPTE / CARNET ════════ */
+const Compte = ({suivis, onAtelier}) => {
+  const suivisCui = CUISINIEZ.filter(c=>suivis.includes(c.id));
+  return (
+    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column'}}>
+      <StatusBar/>
+      <div style={{flex:1,overflowY:'auto',padding:'14px 22px 90px'}}>
+        <Label color={C.ink3}>— LECTEUR N° 0142 —</Label>
+        <div className="display" style={{fontSize:32,lineHeight:1,letterSpacing:'-.025em',marginTop:6}}>Ayoub <span className="it" style={{color:C.terra}}>Baiga.</span></div>
+        <div className="it" style={{fontSize:13,color:C.ink2,marginTop:4}}>membre depuis avril 2026 · 0 numero lu</div>
+
+        {/* plats suspendus */}
+        <div style={{marginTop:18,padding:16,border:`1px solid rgba(196,112,77,.3)`,background:'linear-gradient(135deg,rgba(196,112,77,.1),transparent)'}}>
+          <Label mb={6} style={{fontSize:11}}>— PLATS SUSPENDUS —</Label>
+          <div className="display" style={{fontSize:24,lineHeight:1}}>Vous en avez offert<br/><span className="it" style={{color:C.terra}}>0 ce mois-ci.</span></div>
+          <div className="it" style={{fontSize:12,color:C.ink2,marginTop:8}}>Le quartier en a redistribue 147 depuis avril.</div>
+        </div>
+
+        {/* carnet */}
+        <Label mb={8} style={{fontSize:11,marginTop:20}}>— CARNET —</Label>
+        {suivisCui.length ? suivisCui.map(c=>(
+          <div key={c.id} style={{display:'flex',gap:10,padding:'10px 0',borderBottom:`1px solid ${C.line}`,alignItems:'center'}}>
+            <Avatar size={36} portraitId={c.portraitId}/>
+            <div style={{flex:1}}>
+              <div className="display" style={{fontSize:15}}>{c.nom}</div>
+              <div className="it" style={{fontSize:11,color:C.ink2}}>vous suivez · {c.plats} plats</div>
+            </div>
+          </div>
+        )) : <div className="it" style={{fontSize:13,color:C.ink3,padding:'4px 0'}}>Aucun cuisiniez suivi pour l'instant.</div>}
+
+        {/* archive */}
+        <Label mb={8} style={{fontSize:11,marginTop:20}}>— ARCHIVE —</Label>
+        <div className="it" style={{fontSize:13,color:C.ink3,padding:'4px 0'}}>Vos plats goutes apparaitront ici, dates comme un carnet de lecture.</div>
+
+        {/* devenir cuisiniez */}
+        <Label mb={6} style={{fontSize:11,marginTop:20}}>— COTE CUISINE —</Label>
+        <div onClick={onAtelier} className="tap" style={{padding:16,border:`1px solid rgba(196,112,77,.3)`,background:'rgba(196,112,77,.06)',position:'relative'}}>
+          <div className="display" style={{fontSize:20,lineHeight:1}}>Ouvrir mon <span className="it" style={{color:C.terra}}>atelier.</span></div>
+          <div className="it" style={{fontSize:13,color:C.ink2,marginTop:6,lineHeight:1.4}}>Vous cuisinez aussi ? Publiez votre menu et recevez les reservations de vos voisins.</div>
+          <span className="it" style={{position:'absolute',top:16,right:18,fontSize:20,color:C.terra}}>→</span>
+        </div>
+
+        {/* abonnement jeudi (desactive) */}
+        <Label mb={6} style={{fontSize:11,marginTop:20}}>— ABONNEMENT —</Label>
+        <div style={{padding:16,border:`1px solid ${C.line2}`}}>
+          <div className="display" style={{fontSize:20,lineHeight:1}}>Tous les <span className="it" style={{color:C.terra}}>jeudis soir.</span></div>
+          <div className="it" style={{fontSize:13,color:C.ink2,marginTop:6,lineHeight:1.4}}>Un plat different chaque semaine, choisi par les cuisiniez. 39 €/mois · 4 jeudis.</div>
+          <div className="it" style={{fontSize:13,color:C.terra,marginTop:10}}>Bientot — disponible avec le paiement en ligne</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ════════ CHOIX DU ROLE ════════ */
+const RoleChoice = ({onClient, onCuisiniez}) => (
+  <div style={{position:'absolute',inset:0,background:C.bg,display:'flex',flexDirection:'column',animation:'fadeIn .5s'}}>
+    <StatusBar/>
+    <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',padding:'0 32px'}}>
+      <Label>— BIENVENUE —</Label>
+      <div className="display" style={{fontSize:46,lineHeight:1,letterSpacing:'-.025em',marginBottom:8}}>
+        Que faites-vous<br/><span className="it" style={{color:C.terra}}>ce soir ?</span>
+      </div>
+      <div className="it" style={{fontSize:14,color:C.ink2,lineHeight:1.5,marginBottom:40}}>
+        Vous avez faim, ou vous avez cuisine. Les deux sont les bienvenus.
+      </div>
+
+      {/* Je commande */}
+      <div onClick={onClient} className="tap" style={{border:`1px solid ${C.line2}`,padding:'22px 20px',marginBottom:14,position:'relative'}}>
+        <Label mb={6} style={{fontSize:11}}>— I —</Label>
+        <div className="display" style={{fontSize:26,lineHeight:1}}>Je <span className="it" style={{color:C.terra}}>commande.</span></div>
+        <div className="it" style={{fontSize:13,color:C.ink2,marginTop:6,lineHeight:1.4}}>Explorer les cuisiniez du quartier et reserver un plat pour ce soir.</div>
+        <span className="it" style={{position:'absolute',top:22,right:20,fontSize:22,color:C.terra}}>→</span>
+      </div>
+
+      {/* Je cuisine */}
+      <div onClick={onCuisiniez} className="tap" style={{border:`1px solid rgba(196,112,77,.3)`,background:'rgba(196,112,77,.06)',padding:'22px 20px',position:'relative'}}>
+        <Label mb={6} style={{fontSize:11}}>— II —</Label>
+        <div className="display" style={{fontSize:26,lineHeight:1}}>Je <span className="it" style={{color:C.terra}}>cuisine.</span></div>
+        <div className="it" style={{fontSize:13,color:C.ink2,marginTop:6,lineHeight:1.4}}>Ouvrir mon atelier, publier mon menu et recevoir les reservations de mes voisins.</div>
+        <span className="it" style={{position:'absolute',top:22,right:20,fontSize:22,color:C.terra}}>→</span>
+      </div>
+    </div>
+    <div className="it" style={{fontSize:12,color:C.ink3,textAlign:'center',padding:'0 32px max(env(safe-area-inset-bottom),24px)'}}>
+      Phase de lancement · 3 mois gratuits · paiement en especes a la collecte.
+    </div>
+  </div>
+);
+
+/* ════════ ESPACE CUISINIEZ (atelier) ════════ */
+const Atelier = ({onQuit}) => {
+  const moi = CUISINIEZ[0]; // demo: l'atelier de Fatima
+  const [ouvert,setOuvert] = useState(true);
+  const [section,setSection] = useState('soir'); // soir | menu | recettes
+  const [accepte,setAccepte] = useState({});
+  const [prets,setPrets] = useState({});
+  // commandes recues ce soir (demo)
+  const commandes = [
+    {id:'4892', client:'Karim S.', plat:'Couscous royal', parts:2, creneau:'19h30', montant:14},
+    {id:'4893', client:'Sophie L.', plat:'Couscous royal', parts:1, creneau:'20h00', montant:14},
+    {id:'4894', client:'Mehdi B.', plat:'Pastilla au poulet', parts:2, creneau:'20h15', montant:13},
+  ];
+  const recettesSoir = commandes.reduce((s,c)=>s+c.montant,0);
+  // mon menu (les plats de Fatima)
+  const mesPlats = PLATS.filter(p=>p.auteurId===moi.id);
+  const [publies,setPublies] = useState(()=>{const o={};mesPlats.forEach(p=>o[p.id]=true);return o;});
+
+  return (
+    <div style={{position:'absolute',inset:0,background:C.bg,display:'flex',flexDirection:'column',animation:'fadeIn .4s'}}>
+      <StatusBar/>
+      {/* entete atelier */}
+      <div style={{padding:'14px 22px 16px',borderBottom:`1px solid ${C.line}`}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div>
+            <Label mb={4}>— L'ATELIER —</Label>
+            <div className="display" style={{fontSize:30,letterSpacing:'-.02em',lineHeight:1}}>{moi.nom.split(' ')[0]} <span className="it" style={{color:C.terra}}>{moi.nom.split(' ')[1]}.</span></div>
+            <div className="it" style={{fontSize:12,color:C.ink2,marginTop:4}}>{moi.cuisine} · {moi.atelier}</div>
+          </div>
+          <div className="it tap" onClick={onQuit} style={{fontSize:13,color:C.ink3}}>quitter</div>
+        </div>
+        {/* toggle ouvert */}
+        <div onClick={()=>setOuvert(v=>!v)} className="tap" style={{marginTop:16,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 14px',border:`1px solid ${ouvert?'rgba(196,112,77,.3)':C.line}`,background:ouvert?'rgba(196,112,77,.06)':'transparent'}}>
+          <div className="it" style={{fontSize:14,color:ouvert?C.ink:C.ink2}}>{ouvert?'Atelier ouvert ce soir':'Atelier ferme'}</div>
+          <div style={{width:42,height:24,background:ouvert?C.terra:C.bg3,borderRadius:14,position:'relative',transition:'background .2s',border:`1px solid ${C.line2}`}}>
+            <div style={{position:'absolute',top:2,left:ouvert?20:2,width:18,height:18,background:'#fff',borderRadius:'50%',transition:'left .2s'}}/>
+          </div>
+        </div>
+      </div>
+
+      {/* sections */}
+      <div style={{display:'flex',borderBottom:`1px solid ${C.line}`}}>
+        {[['soir','Ce soir'],['menu','Mon menu'],['recettes','Recettes']].map(([k,lbl])=>(
+          <div key={k} className="tap" onClick={()=>setSection(k)} style={{flex:1,padding:'14px 0',textAlign:'center',position:'relative',color:section===k?C.ink:C.ink3}}>
+            <span className="it" style={{fontSize:15,color:section===k?C.terra:'inherit'}}>{lbl}</span>
+            {section===k && <div style={{position:'absolute',left:'25%',right:'25%',bottom:-1,height:2,background:C.terra}}/>}
+          </div>
+        ))}
+      </div>
+
+      <div style={{flex:1,overflowY:'auto',padding:'18px 22px max(env(safe-area-inset-bottom),24px)'}}>
+        {section==='soir' && (
+          <div style={{animation:'fadeIn .3s'}}>
+            <Label>— {commandes.length} RESERVATIONS —</Label>
+            {commandes.map(c=>{
+              const acc=accepte[c.id], pret=prets[c.id];
+              return (
+                <div key={c.id} style={{padding:'14px 0',borderBottom:`1px solid ${C.line}`}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                    <div className="display" style={{fontSize:18}}>{c.plat}</div>
+                    <div className="it" style={{fontSize:14,color:C.terra}}>{c.montant} €</div>
+                  </div>
+                  <div className="it" style={{fontSize:12,color:C.ink2,marginTop:3}}>N° {c.id} · {c.client} · {c.parts} part{c.parts>1?'s':''} · retrait {c.creneau}</div>
+                  <div style={{display:'flex',gap:10,marginTop:10}}>
+                    {!acc ? (
+                      <button onClick={()=>setAccepte(p=>({...p,[c.id]:true}))} className="tap" style={{flex:1,height:40,background:C.terra,color:'#fff',border:'none',fontFamily:"'Instrument Serif',serif",fontSize:15}}>Accepter</button>
+                    ) : !pret ? (
+                      <button onClick={()=>setPrets(p=>({...p,[c.id]:true}))} className="tap it" style={{flex:1,height:40,background:'transparent',color:C.terra,border:`1px solid ${C.terra}`,fontSize:15}}>Marquer pret</button>
+                    ) : (
+                      <div className="it" style={{flex:1,height:40,display:'flex',alignItems:'center',justifyContent:'center',color:C.ink2,fontSize:14,border:`1px solid ${C.line}`}}>Pret · en attente de collecte</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{marginTop:18,padding:14,border:`1px solid ${C.line2}`,display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+              <span className="it" style={{fontSize:14,color:C.ink2}}>A encaisser en especes ce soir</span>
+              <span className="display" style={{fontSize:22,color:C.terra}}>{recettesSoir} €</span>
+            </div>
+          </div>
+        )}
+
+        {section==='menu' && (
+          <div style={{animation:'fadeIn .3s'}}>
+            <Label>— MON MENU DE LA SEMAINE —</Label>
+            <div className="it" style={{fontSize:13,color:C.ink2,marginBottom:14,lineHeight:1.5}}>Activez les plats que vous proposez. Vos voisins les verront dans le numero du jour.</div>
+            {mesPlats.map(p=>(
+              <div key={p.id} style={{display:'flex',gap:12,padding:'12px 0',borderBottom:`1px solid ${C.line}`,alignItems:'center'}}>
+                <div style={{width:56,height:56,flexShrink:0}}><Plate h="56px" imgId={p.imgId} label="" w={150} ht={150} /></div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div className="display" style={{fontSize:17}}>{p.nom} <span className="it" style={{color:C.terra}}>{p.motFin}</span></div>
+                  <div className="it" style={{fontSize:12,color:C.ink2,marginTop:2}}>{p.prix} € · {p.parts} parts</div>
+                </div>
+                <div onClick={()=>setPublies(o=>({...o,[p.id]:!o[p.id]}))} className="tap" style={{width:42,height:24,background:publies[p.id]?C.terra:C.bg3,borderRadius:14,position:'relative',flexShrink:0,border:`1px solid ${C.line2}`}}>
+                  <div style={{position:'absolute',top:2,left:publies[p.id]?20:2,width:18,height:18,background:'#fff',borderRadius:'50%',transition:'left .2s'}}/>
+                </div>
+              </div>
+            ))}
+            <button className="tap" style={{width:'100%',height:48,marginTop:18,background:'transparent',color:C.terra,border:`1px dashed ${C.terra}`,fontFamily:"'Instrument Serif',serif",fontSize:16}}>+ Ajouter un plat</button>
+          </div>
+        )}
+
+        {section==='recettes' && (
+          <div style={{animation:'fadeIn .3s'}}>
+            <Label>— CETTE SEMAINE —</Label>
+            <div className="display" style={{fontSize:48,letterSpacing:'-.02em',lineHeight:1,marginTop:6}}>247 <span className="it" style={{color:C.terra,fontSize:36}}>€</span></div>
+            <div className="it" style={{fontSize:13,color:C.ink2,marginTop:4}}>encaisses en especes · 19 reservations</div>
+            <div style={{marginTop:20}}>
+              {[['Lun','2 plats','28 €'],['Mar','3 plats','39 €'],['Mer','4 plats','54 €'],['Jeu','5 plats','67 €'],['Ven','3 plats','41 €'],['Sam','2 plats','18 €']].map(([j,n,m],i)=>(
+                <div key={i} style={{display:'flex',alignItems:'baseline',gap:14,padding:'11px 0',borderBottom:`1px solid ${C.line}`}}>
+                  <span className="it" style={{fontSize:13,color:C.ink3,width:42}}>{j}</span>
+                  <span className="it" style={{flex:1,fontSize:13,color:C.ink2}}>{n}</span>
+                  <span className="display" style={{fontSize:17}}>{m}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:18,padding:14,border:`1px solid rgba(196,112,77,.3)`,background:'rgba(196,112,77,.06)'}}>
+              <Label mb={4} style={{fontSize:11}}>— LANCEMENT —</Label>
+              <div className="it" style={{fontSize:13,color:C.ink,lineHeight:1.4}}>Aucune commission prelevee pendant la phase de test. Vous gardez <span style={{color:C.terra}}>100 % de vos recettes.</span></div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ════════ BOTTOM BAR ════════ */
+const BotBar = ({tab, setTab}) => {
+  const items = [['edition','Accueil'],['cuisiniez','Les chefs'],['panier','Panier'],['compte','Compte']];
+  return (
+    <div style={{position:'absolute',bottom:0,left:0,right:0,background:'rgba(10,9,8,.96)',backdropFilter:'blur(12px)',
+      borderTop:`1px solid ${C.line}`,display:'flex',alignItems:'center',paddingBottom:'max(env(safe-area-inset-bottom),16px)',paddingTop:14,zIndex:10}}>
+      {items.map(([k,label])=>(
+        <div key={k} className="tap" onClick={()=>setTab(k)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center'}}>
+          <span style={{fontFamily:"'Instrument Serif',serif",fontStyle:tab===k?'italic':'normal',fontSize:17,color:tab===k?C.terra:'rgba(242,237,229,.55)'}}>{label}</span>
+          <div style={{width:5,height:5,borderRadius:'50%',background:tab===k?C.terra:'transparent',marginTop:5}}/>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ════════ APP ════════ */
+const App = () => {
+  const [screen,setScreen] = useState('splash'); // splash | role | main | detail | confirm | atelier
+  const [tab,setTab] = useState('edition');
+  const [vue,setVue] = useState('soir'); // soir | semaine — persiste au retour
+  const [detailId,setDetailId] = useState(null);
+  const [panier,setPanier] = useState(()=>{ try{return JSON.parse(localStorage.getItem('makla_panier'))||[]}catch{return[]} });
+  const [suivis,setSuivis] = useState(()=>{ try{return JSON.parse(localStorage.getItem('makla_suivis'))||[1,2]}catch{return[1,2]} });
+  const [order,setOrder] = useState(null);
+  const [isMobile,setIsMobile] = useState(window.innerWidth<768);
+  useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener('resize',h);return()=>window.removeEventListener('resize',h)},[]);
+  useEffect(()=>{try{localStorage.setItem('makla_panier',JSON.stringify(panier))}catch{}},[panier]);
+  useEffect(()=>{try{localStorage.setItem('makla_suivis',JSON.stringify(suivis))}catch{}},[suivis]);
+
+  const toggleSuivi = id => setSuivis(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
+  const openPlat = id => { setDetailId(id); setScreen('detail'); };
+  const reserve = (id, enfant) => {
+    const p = platsById(id);
+    setPanier(prev=>[...prev,{id,nom:p.nom,motFin:p.motFin,prix:p.prix,prixEnfant:p.prixEnfant,auteurId:p.auteurId,imgId:p.imgId,enfant,qte:1}]);
+    setScreen('main'); setTab('panier');
+  };
+  const confirmer = () => {
+    const a = panier[0] ? cuiById(panier[0].auteurId) : cuiById(1);
+    setOrder({num:'48'+Math.floor(10+Math.random()*89), auteurId:a.id, creneau:'19h30 → 20h30'});
+    setPanier([]); setScreen('confirm');
+  };
+
+  return (
+    <div style={{position:'fixed',inset:0,background:C.bg,display:'flex',justifyContent:'center'}}>
+      <div style={{width:isMobile?'100%':430,height:'100%',position:'relative',overflow:'hidden',background:C.bg,...(isMobile?{}:{boxShadow:'0 0 0 1px rgba(242,237,229,.06)'})}}>
+        {screen==='splash' && <Splash onDone={()=>setScreen('role')} />}
+        {screen==='role' && <RoleChoice onClient={()=>{setTab('edition');setScreen('main');}} onCuisiniez={()=>setScreen('atelier')} />}
+        {screen==='atelier' && <Atelier onQuit={()=>setScreen('role')} />}
+        {screen==='main' && (
+          <div style={{position:'absolute',inset:0}}>
+            <div style={{position:'absolute',inset:0}}>
+              {tab==='edition' && <Home onPlat={openPlat} vue={vue} setVue={setVue} />}
+              {tab==='cuisiniez' && <CuisiniezList onPlat={openPlat} suivis={suivis} toggleSuivi={toggleSuivi} />}
+              {tab==='panier' && <Panier panier={panier} setPanier={setPanier} onConfirm={confirmer} onExplore={()=>setTab('edition')} />}
+              {tab==='compte' && <Compte suivis={suivis} onAtelier={()=>setScreen('atelier')} />}
+            </div>
+            <BotBar tab={tab} setTab={setTab} />
+          </div>
+        )}
+        {screen==='detail' && <Detail platId={detailId} onBack={()=>setScreen('main')} onReserve={reserve} suivis={suivis} toggleSuivi={toggleSuivi} />}
+        {screen==='confirm' && <Confirmation order={order} onDone={()=>{setScreen('main');setTab('edition');}} />}
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
+</script>
+</body>
+</html>

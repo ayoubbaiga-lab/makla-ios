@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Capacitor generated native project (Codemagic le regenere via "cap add ios")
+ios/
+
+# Build artifacts
+build/
+*.ipa
+*.dSYM.zip
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*

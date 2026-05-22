@@ -1,0 +1,51 @@
+workflows:
+  ios-makla:
+    name: Makla iOS — App Store
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      vars:
+        BUNDLE_ID: "com.makla.app"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+        APP_STORE_APP_ID: 0000000000   # <-- REMPLACE par l'Apple ID numerique de ton app (App Store Connect)
+      node: 20.11.0
+      xcode: latest
+      cocoapods: default
+      groups:
+        - app_store_credentials   # contient APP_STORE_CONNECT_* (voir README)
+    integrations:
+      app_store_connect: makla_api_key   # <-- nom de ta cle API ajoutee dans Codemagic > Teams > Integrations
+    scripts:
+      - name: Installer les dependances npm
+        script: npm install
+      - name: Ajouter la plateforme iOS
+        script: |
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+          npx cap sync ios
+      - name: Generer icones et splash
+        script: npx capacitor-assets generate --ios || true
+      - name: Installer les pods
+        script: |
+          cd ios/App && pod install
+      - name: Definir la version de build (auto-increment)
+        script: |
+          cd ios/App
+          agvtool new-version -all $(($(date +%s) / 60))
+      - name: Build et archive
+        script: |
+          xcode-project use-profiles
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # Passe a true quand tu veux soumettre direct a la review App Store :
+        submit_to_app_store: false

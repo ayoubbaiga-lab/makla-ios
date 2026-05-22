@@ -1,0 +1,22 @@
+{
+  "name": "makla-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Makla — cuisine de quartier (iOS via Capacitor)",
+  "scripts": {
+    "sync": "cap sync ios",
+    "add:ios": "cap add ios",
+    "assets": "capacitor-assets generate --ios"
+  },
+  "dependencies": {
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/splash-screen": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.1.2"
+  }
+}
