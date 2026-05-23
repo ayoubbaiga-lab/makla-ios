@@ -10,10 +10,8 @@ workflows:
         XCODE_SCHEME: "App"
         APP_STORE_APP_ID: 0000000000   # <-- REMPLACE par l'Apple ID numerique de ton app (App Store Connect)
       node: 20.11.0
-      xcode: latest
-      cocoapods: default
-      groups:
-        - app_store_credentials   # contient APP_STORE_CONNECT_* (voir README)
+      xcode: 16.2
+      cocoapods: 1.15.2
     integrations:
       app_store_connect: makla_api_key   # <-- nom de ta cle API ajoutee dans Codemagic > Teams > Integrations
     scripts:

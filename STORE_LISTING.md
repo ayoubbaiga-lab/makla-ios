@@ -58,8 +58,16 @@ Fonctionnalites natives de l'app :
 Phase de lancement : pas de paiement en ligne (reglement en especes a la collecte), donc aucun compte de test bancaire necessaire. Vous pouvez tester librement :
 1. A l'ouverture, choisissez "Je commande" pour le parcours client
 2. Ou "Je cuisine" pour l'espace cuisiniez
+Aucun identifiant requis.
 
-Aucun identifiant requis. Merci pour votre temps.
+Concernant la directive 4.2 (Minimum Functionality) : Makla n'est pas un simple site web encapsule. L'app apporte une valeur native concrete pour les habitants de Mantes-la-Jolie :
+- Notifications push locales quand le plat est pret a etre collecte
+- Geolocalisation pour situer l'atelier du cuisiniez le plus proche
+- Fonctionnement hors-ligne (consultation du menu sans reseau)
+- Deux parcours distincts (client / cuisiniez) avec gestion de reservations
+- Experience plein ecran sans barre de navigateur, pensee pour un usage quotidien de proximite
+
+Merci pour votre temps et votre comprehension.
 
 ## Confidentialité (App Privacy dans App Store Connect)
 - Données collectées: Aucune liée a l'identite pendant la phase de test
