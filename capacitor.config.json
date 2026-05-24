@@ -3,6 +3,10 @@
   "appName": "Makla",
   "webDir": "www",
   "backgroundColor": "#0a0908",
+  "server": {
+    "url": "https://maklaeat-store.vercel.app",
+    "cleartext": false
+  },
   "ios": {
     "contentInset": "always",
     "backgroundColor": "#0a0908",
