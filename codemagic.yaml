@@ -32,33 +32,54 @@ workflows:
         script: |
           cd ios/App
           agvtool new-version -all $(($(date +%s) / 60))
-      - name: Generer cle privee et certificat de signature
+      - name: Nettoyer anciens certs + profils sur Apple
         script: |
+          set -x
+          echo "=== Liste des certificats Distribution existants ==="
+          app-store-connect certificates list --type IOS_DISTRIBUTION --save || true
+
+          echo "=== Suppression de tous les certificats Distribution existants ==="
+          # Recupere les IDs et les supprime un par un
+          for cert_id in $(app-store-connect certificates list --type IOS_DISTRIBUTION --json 2>/dev/null | python3 -c "import sys, json; data=json.load(sys.stdin); print('\n'.join(c['id'] for c in data))" 2>/dev/null); do
+            echo "Suppression certificat $cert_id"
+            app-store-connect certificates delete "$cert_id" --ignore-not-found || true
+          done
+
+          echo "=== Suppression des profils App Store existants pour $BUNDLE_ID ==="
+          for prof_id in $(app-store-connect provisioning-profiles list --type IOS_APP_STORE --json 2>/dev/null | python3 -c "import sys, json; data=json.load(sys.stdin); print('\n'.join(p['id'] for p in data if 'com.makla.app' in p.get('attributes',{}).get('name','')))" 2>/dev/null); do
+            echo "Suppression profil $prof_id"
+            app-store-connect provisioning-profiles delete "$prof_id" --ignore-not-found || true
+          done
+      - name: Generer cle privee et nouveau certificat
+        script: |
+          set -e -x
           # Genere une cle privee RSA fraiche
           openssl genrsa -out /tmp/distribution.key 2048
+          chmod 600 /tmp/distribution.key
 
           # Init keychain
           keychain initialize
 
-          # Cree le certificat Distribution iOS avec notre cle privee
+          # Cree le certificat Distribution iOS lie a notre cle privee
           app-store-connect certificates create \
             --type IOS_DISTRIBUTION \
             --certificate-key=/tmp/distribution.key \
             --save
 
-          # Cree ou recupere le profil de provisionnement App Store
+          # Cree le profil App Store pour notre Bundle ID
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --certificate-key=/tmp/distribution.key \
             --create
 
-          # Ajoute tous les certificats au keychain
+          # Ajoute le certificat au keychain
           keychain add-certificates
 
-          # Applique les profils au projet Xcode
+          # Configure le projet Xcode pour utiliser les profils
           xcode-project use-profiles
       - name: Build et archive
         script: |
+          set -e
           xcode-project build-ipa \
             --workspace "$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME"
