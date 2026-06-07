@@ -12,9 +12,6 @@ workflows:
       node: 20.11.0
       xcode: 16.2
       cocoapods: 1.15.2
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.makla.app
     integrations:
       app_store_connect: makla_api_key
     scripts:
@@ -35,9 +32,33 @@ workflows:
         script: |
           cd ios/App
           agvtool new-version -all $(($(date +%s) / 60))
+      - name: Generer cle privee et certificat de signature
+        script: |
+          # Genere une cle privee RSA fraiche
+          openssl genrsa -out /tmp/distribution.key 2048
+
+          # Init keychain
+          keychain initialize
+
+          # Cree le certificat Distribution iOS avec notre cle privee
+          app-store-connect certificates create \
+            --type IOS_DISTRIBUTION \
+            --certificate-key=/tmp/distribution.key \
+            --save
+
+          # Cree ou recupere le profil de provisionnement App Store
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key=/tmp/distribution.key \
+            --create
+
+          # Ajoute tous les certificats au keychain
+          keychain add-certificates
+
+          # Applique les profils au projet Xcode
+          xcode-project use-profiles
       - name: Build et archive
         script: |
-          xcode-project use-profiles
           xcode-project build-ipa \
             --workspace "$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME"
