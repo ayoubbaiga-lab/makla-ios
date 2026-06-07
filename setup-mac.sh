@@ -51,11 +51,18 @@ elif [ -x /usr/local/bin/brew ]; then
 fi
 ok "Homebrew : $(brew --version | head -1)"
 
-# 4. Node 20
-if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]; then
+# 4. Node 20 (node@20 est keg-only, on force le PATH explicite)
+if ! brew list node@20 >/dev/null 2>&1; then
   say "Installation de Node.js 20..."
   brew install node@20
-  brew link --overwrite --force node@20 2>/dev/null || true
+fi
+# Force le PATH vers node@20 (keg-only ne se link pas automatiquement)
+export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
+# Persiste dans .zprofile pour les sessions futures
+grep -q 'node@20/bin' ~/.zprofile 2>/dev/null || echo 'export PATH="/opt/homebrew/opt/node@20/bin:$PATH"' >> ~/.zprofile
+if ! command -v node >/dev/null 2>&1; then
+  err "Node n'est pas trouvable dans le PATH apres installation. Verifier /opt/homebrew/opt/node@20/bin/node"
+  exit 1
 fi
 ok "Node : $(node -v)"
 
