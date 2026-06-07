@@ -8,7 +8,7 @@ workflows:
         BUNDLE_ID: "com.makla.app"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
-        APP_STORE_APP_ID: 0000000000   # <-- REMPLACE par l'Apple ID numerique de ton app (App Store Connect)
+        APP_STORE_APP_ID: 6777566399
       node: 20.11.0
       xcode: 16.2
       cocoapods: 1.15.2
