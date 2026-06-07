@@ -35,6 +35,11 @@ workflows:
       - name: Recuperer / creer cert + profil de signature
         script: |
           keychain initialize
+          # Cree un nouveau certificat Distribution iOS (avec sa cle privee sur ce Mac)
+          app-store-connect certificates create \
+            --type IOS_DISTRIBUTION \
+            --save || true
+          # Recupere / cree le profil de provisionnement App Store
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --create
